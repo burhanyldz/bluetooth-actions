@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    # Avoid running CI for doc-only changelogs/markdown edits
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - '*/CHANGELOG.md'
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 jobs:
