@@ -15,8 +15,11 @@ class BluetoothAPI {
      * Make a fetch request with error handling
      */
     async request(endpoint, options = {}) {
+        const url = `${this.baseURL}${endpoint}`;
+        console.log('API Request:', url, options.method || 'GET');
+        
         try {
-            const response = await fetch(`${this.baseURL}${endpoint}`, {
+            const response = await fetch(url, {
                 ...options,
                 headers: {
                     'Content-Type': 'application/json',
@@ -25,13 +28,14 @@ class BluetoothAPI {
             });
 
             if (!response.ok) {
-                const error = await response.json();
+                const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+                console.error('API Error:', url, response.status, error);
                 throw new Error(error.detail || `HTTP ${response.status}`);
             }
 
             return await response.json();
         } catch (error) {
-            console.error(`API Error (${endpoint}):`, error);
+            console.error(`API Error (${url}):`, error);
             throw error;
         }
     }
@@ -106,12 +110,17 @@ class BluetoothAPI {
 
     initWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        
         // Get the base path from the current location (for ingress support)
-        const basePath = window.location.pathname.replace(/\/+$/, ''); // Remove trailing slash
+        let pathname = window.location.pathname;
+        pathname = pathname.replace(/\/index\.html$/i, '').replace(/\/+$/, '');
+        const basePath = pathname === '' || pathname === '/' ? '' : pathname;
+        
         const wsPath = basePath ? `${basePath}/ws/scan` : '/ws/scan';
         const wsURL = `${protocol}//${window.location.host}${wsPath}`;
         
-        console.log('Connecting WebSocket to:', wsURL);
+        console.log('WebSocket base path:', basePath);
+        console.log('WebSocket URL:', wsURL);
 
         try {
             this.ws = new WebSocket(wsURL);

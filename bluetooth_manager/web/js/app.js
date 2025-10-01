@@ -6,7 +6,18 @@
 class BluetoothManager {
     constructor() {
         // Get base path for ingress support (e.g., /api/hassio_ingress/...)
-        const basePath = window.location.pathname.replace(/\/+$/, '').replace(/\/index\.html$/, '');
+        let pathname = window.location.pathname;
+        
+        // Remove trailing slashes and index.html
+        pathname = pathname.replace(/\/index\.html$/i, '').replace(/\/+$/, '');
+        
+        // If pathname is root or just "/", use empty string
+        const basePath = pathname === '' || pathname === '/' ? '' : pathname;
+        
+        console.log('Window location:', window.location.href);
+        console.log('Pathname:', window.location.pathname);
+        console.log('Detected base path:', basePath);
+        
         this.api = new BluetoothAPI(basePath);
         this.pairedDevices = new Map();
         this.discoveredDevices = new Map();
@@ -14,8 +25,6 @@ class BluetoothManager {
         this.currentAdapter = null;
         this.currentDeviceMac = null;
         this.statusCheckInterval = null;
-        
-        console.log('Base path:', basePath);
         
         this.init();
     }
