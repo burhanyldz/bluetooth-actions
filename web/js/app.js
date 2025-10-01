@@ -1,0 +1,667 @@
+/**
+ * Bluetooth Manager Application
+ * Main application logic and UI management
+ */
+
+class BluetoothManager {
+    constructor() {
+        this.api = new BluetoothAPI();
+        this.pairedDevices = new Map();
+        this.discoveredDevices = new Map();
+        this.scanning = false;
+        this.currentAdapter = null;
+        this.currentDeviceMac = null;
+        
+        this.init();
+    }
+
+    async init() {
+        console.log('Initializing Bluetooth Manager...');
+        
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        // Connect WebSocket
+        this.api.connectWebSocket(this.handleWebSocketMessage.bind(this));
+        
+        // Start ping interval
+        setInterval(() => this.api.sendPing(), 30000);
+        
+        // Load initial data
+        await this.loadAdapterInfo();
+        await this.loadPairedDevices();
+    }
+
+    setupEventListeners() {
+        // Scan button
+        document.getElementById('scan-btn').addEventListener('click', () => {
+            this.toggleScan();
+        });
+
+        // Power toggle
+        document.getElementById('power-toggle').addEventListener('click', () => {
+            this.togglePower();
+        });
+
+        // Refresh paired devices
+        document.getElementById('refresh-paired').addEventListener('click', () => {
+            this.loadPairedDevices();
+        });
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.switchTab(e.target.closest('.tab-btn').dataset.tab);
+            });
+        });
+
+        // Filter audio devices
+        document.getElementById('filter-audio').addEventListener('change', () => {
+            this.renderDiscoveredDevices();
+        });
+
+        // Modal close
+        document.querySelector('.modal-close').addEventListener('click', () => {
+            this.closeModal();
+        });
+        document.getElementById('modal-close-btn').addEventListener('click', () => {
+            this.closeModal();
+        });
+
+        // Modal actions
+        document.getElementById('modal-trust-btn').addEventListener('click', () => {
+            this.toggleTrust();
+        });
+        document.getElementById('modal-remove-btn').addEventListener('click', () => {
+            this.removeDeviceFromModal();
+        });
+
+        // Close modal on background click
+        document.getElementById('device-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'device-modal') {
+                this.closeModal();
+            }
+        });
+    }
+
+    // Adapter Management
+    async loadAdapterInfo() {
+        try {
+            const info = await this.api.getAdapterInfo();
+            this.currentAdapter = info;
+            
+            const adapterName = document.getElementById('adapter-name');
+            adapterName.textContent = info.alias || info.name || 'Bluetooth Adapter';
+            
+            const powerBtn = document.getElementById('power-toggle');
+            if (info.powered) {
+                powerBtn.classList.add('active');
+            } else {
+                powerBtn.classList.remove('active');
+            }
+        } catch (error) {
+            this.showToast('Failed to load adapter info', 'error');
+            console.error('Error loading adapter:', error);
+        }
+    }
+
+    async togglePower() {
+        const isOn = this.currentAdapter?.powered || false;
+        
+        try {
+            this.showLoading('Toggling power...');
+            await this.api.setAdapterPower(!isOn);
+            await this.loadAdapterInfo();
+            this.showToast(`Adapter powered ${!isOn ? 'on' : 'off'}`, 'success');
+        } catch (error) {
+            this.showToast(`Failed to toggle power: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    // Scanning
+    async toggleScan() {
+        if (this.scanning) {
+            await this.stopScan();
+        } else {
+            await this.startScan();
+        }
+    }
+
+    async startScan() {
+        try {
+            await this.api.startScan();
+            this.scanning = true;
+            this.updateScanButton();
+            this.discoveredDevices.clear();
+            this.renderDiscoveredDevices();
+            this.showToast('Scanning started', 'info');
+            
+            // Auto-switch to discovered tab
+            this.switchTab('discovered');
+        } catch (error) {
+            this.showToast(`Failed to start scan: ${error.message}`, 'error');
+        }
+    }
+
+    async stopScan() {
+        try {
+            await this.api.stopScan();
+            this.scanning = false;
+            this.updateScanButton();
+            this.showToast('Scanning stopped', 'info');
+        } catch (error) {
+            this.showToast(`Failed to stop scan: ${error.message}`, 'error');
+        }
+    }
+
+    updateScanButton() {
+        const btn = document.getElementById('scan-btn');
+        const status = document.getElementById('scan-status');
+        
+        if (this.scanning) {
+            btn.innerHTML = '<i class="fas fa-stop"></i> Stop Scan';
+            btn.classList.add('active');
+            status.classList.remove('hidden');
+        } else {
+            btn.innerHTML = '<i class="fas fa-search"></i> Start Scan';
+            btn.classList.remove('active');
+            status.classList.add('hidden');
+        }
+    }
+
+    // Device Management
+    async loadPairedDevices() {
+        try {
+            const response = await this.api.getDevices();
+            this.pairedDevices.clear();
+            
+            for (const device of response.devices) {
+                if (device.paired) {
+                    this.pairedDevices.set(device.mac, device);
+                }
+            }
+            
+            this.renderPairedDevices();
+        } catch (error) {
+            this.showToast('Failed to load devices', 'error');
+            console.error('Error loading devices:', error);
+        }
+    }
+
+    async pairAndConnect(mac) {
+        try {
+            this.showLoading('Pairing device...');
+            
+            // Pair
+            await this.api.pairDevice(mac);
+            
+            // Trust
+            await this.api.trustDevice(mac);
+            
+            // Connect
+            await this.api.connectDevice(mac);
+            
+            // Reload devices
+            await this.loadPairedDevices();
+            
+            this.showToast('Device paired and connected!', 'success');
+        } catch (error) {
+            this.showToast(`Failed to pair: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async connectDevice(mac) {
+        try {
+            this.showLoading('Connecting...');
+            await this.api.connectDevice(mac);
+            await this.loadPairedDevices();
+        } catch (error) {
+            this.showToast(`Failed to connect: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async disconnectDevice(mac) {
+        try {
+            this.showLoading('Disconnecting...');
+            await this.api.disconnectDevice(mac);
+            await this.loadPairedDevices();
+        } catch (error) {
+            this.showToast(`Failed to disconnect: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async removeDevice(mac) {
+        if (!confirm('Are you sure you want to remove this device?')) {
+            return;
+        }
+        
+        try {
+            this.showLoading('Removing device...');
+            await this.api.removeDevice(mac);
+            this.pairedDevices.delete(mac);
+            this.renderPairedDevices();
+            this.showToast('Device removed', 'success');
+        } catch (error) {
+            this.showToast(`Failed to remove: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async showDeviceInfo(mac) {
+        try {
+            this.currentDeviceMac = mac;
+            const info = await this.api.getDeviceInfo(mac);
+            this.displayDeviceModal(info);
+        } catch (error) {
+            this.showToast(`Failed to get device info: ${error.message}`, 'error');
+        }
+    }
+
+    // WebSocket Message Handler
+    handleWebSocketMessage(data) {
+        console.log('WebSocket message:', data);
+        
+        switch (data.type) {
+            case 'discovered':
+                this.discoveredDevices.set(data.mac, {
+                    mac: data.mac,
+                    name: data.name,
+                    discovered_at: data.discovered_at,
+                    rssi: null
+                });
+                this.renderDiscoveredDevices();
+                break;
+                
+            case 'rssi_update':
+                const device = this.discoveredDevices.get(data.mac);
+                if (device) {
+                    device.rssi = data.rssi;
+                    this.renderDiscoveredDevices();
+                }
+                break;
+                
+            case 'device_connected':
+                this.showToast(`Connected to ${data.name}`, 'success');
+                this.loadPairedDevices();
+                break;
+                
+            case 'device_disconnected':
+                this.showToast('Device disconnected', 'info');
+                this.loadPairedDevices();
+                break;
+                
+            case 'device_paired':
+                this.showToast(data.message, 'success');
+                this.loadPairedDevices();
+                break;
+                
+            case 'device_removed':
+                this.showToast(data.message, 'success');
+                this.loadPairedDevices();
+                break;
+        }
+    }
+
+    // UI Rendering
+    renderPairedDevices() {
+        const container = document.getElementById('paired-list');
+        
+        if (this.pairedDevices.size === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-bluetooth-b"></i>
+                    <p>No paired devices</p>
+                    <small>Scan for devices to pair with them</small>
+                </div>
+            `;
+            return;
+        }
+        
+        // Sort: connected first, then by name
+        const devices = Array.from(this.pairedDevices.values()).sort((a, b) => {
+            if (a.connected !== b.connected) {
+                return b.connected ? 1 : -1;
+            }
+            return (a.name || a.mac).localeCompare(b.name || b.mac);
+        });
+        
+        container.innerHTML = devices.map(device => this.createDeviceCard(device, true)).join('');
+        
+        // Add event listeners
+        devices.forEach(device => {
+            // Connect/Disconnect
+            const connectBtn = container.querySelector(`[data-action="connect"][data-mac="${device.mac}"]`);
+            if (connectBtn) {
+                connectBtn.addEventListener('click', () => {
+                    if (device.connected) {
+                        this.disconnectDevice(device.mac);
+                    } else {
+                        this.connectDevice(device.mac);
+                    }
+                });
+            }
+            
+            // Remove
+            const removeBtn = container.querySelector(`[data-action="remove"][data-mac="${device.mac}"]`);
+            if (removeBtn) {
+                removeBtn.addEventListener('click', () => this.removeDevice(device.mac));
+            }
+            
+            // Info
+            const infoBtn = container.querySelector(`[data-action="info"][data-mac="${device.mac}"]`);
+            if (infoBtn) {
+                infoBtn.addEventListener('click', () => this.showDeviceInfo(device.mac));
+            }
+        });
+    }
+
+    renderDiscoveredDevices() {
+        const container = document.getElementById('discovered-list');
+        const filterAudio = document.getElementById('filter-audio').checked;
+        
+        if (this.discoveredDevices.size === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <p>${this.scanning ? 'Scanning for devices...' : 'Start scanning to discover devices'}</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Filter and sort by RSSI (strongest first)
+        let devices = Array.from(this.discoveredDevices.values());
+        
+        if (filterAudio) {
+            devices = devices.filter(d => this.isAudioDevice(d.name));
+        }
+        
+        devices.sort((a, b) => (b.rssi || -100) - (a.rssi || -100));
+        
+        if (devices.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-headphones"></i>
+                    <p>No audio devices found</p>
+                    <small>Try disabling the audio filter</small>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = devices.map(device => this.createDeviceCard(device, false)).join('');
+        
+        // Add event listeners
+        devices.forEach(device => {
+            const pairBtn = container.querySelector(`[data-action="pair"][data-mac="${device.mac}"]`);
+            if (pairBtn) {
+                pairBtn.addEventListener('click', () => this.pairAndConnect(device.mac));
+            }
+        });
+    }
+
+    createDeviceCard(device, isPaired) {
+        const icon = this.getDeviceIcon(device.name);
+        const signalBars = this.getSignalBars(device.rssi);
+        
+        if (isPaired) {
+            const statusClass = device.connected ? 'connected' : 'disconnected';
+            const statusText = device.connected ? 'Connected' : 'Disconnected';
+            const actionIcon = device.connected ? 'unlink' : 'link';
+            const actionText = device.connected ? 'Disconnect' : 'Connect';
+            
+            return `
+                <div class="device-card ${statusClass}">
+                    <div class="device-icon">${icon}</div>
+                    <div class="device-info">
+                        <div class="device-name">${device.name || device.mac}</div>
+                        <div class="device-mac">${device.mac}</div>
+                        <div class="device-status status-${statusClass}">${statusText}</div>
+                    </div>
+                    <div class="device-actions">
+                        <button class="btn btn-sm btn-primary" data-action="connect" data-mac="${device.mac}">
+                            <i class="fas fa-${actionIcon}"></i> ${actionText}
+                        </button>
+                        <button class="btn btn-sm btn-secondary" data-action="info" data-mac="${device.mac}">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" data-action="remove" data-mac="${device.mac}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="device-card discovered">
+                    <div class="device-icon">${icon}</div>
+                    <div class="device-info">
+                        <div class="device-name">${device.name || device.mac}</div>
+                        <div class="device-mac">${device.mac}</div>
+                        ${device.rssi ? `<div class="device-signal">${signalBars} ${device.rssi} dBm</div>` : ''}
+                    </div>
+                    <div class="device-actions">
+                        <button class="btn btn-sm btn-primary" data-action="pair" data-mac="${device.mac}">
+                            <i class="fas fa-plus"></i> Pair & Connect
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    getDeviceIcon(name) {
+        if (!name) return '<i class="fas fa-bluetooth-b"></i>';
+        
+        const nameLower = name.toLowerCase();
+        if (nameLower.includes('headphone') || nameLower.includes('headset')) {
+            return '<i class="fas fa-headphones"></i>';
+        } else if (nameLower.includes('speaker') || nameLower.includes('sound')) {
+            return '<i class="fas fa-volume-up"></i>';
+        } else if (nameLower.includes('phone')) {
+            return '<i class="fas fa-mobile-alt"></i>';
+        } else if (nameLower.includes('keyboard')) {
+            return '<i class="fas fa-keyboard"></i>';
+        } else if (nameLower.includes('mouse')) {
+            return '<i class="fas fa-mouse"></i>';
+        } else {
+            return '<i class="fas fa-bluetooth-b"></i>';
+        }
+    }
+
+    isAudioDevice(name) {
+        if (!name) return false;
+        const nameLower = name.toLowerCase();
+        return nameLower.includes('headphone') || 
+               nameLower.includes('headset') || 
+               nameLower.includes('speaker') || 
+               nameLower.includes('sound') ||
+               nameLower.includes('audio') ||
+               nameLower.includes('music');
+    }
+
+    getSignalBars(rssi) {
+        if (!rssi) return '';
+        
+        if (rssi >= -50) return '<i class="fas fa-signal"></i>';
+        if (rssi >= -60) return '<i class="fas fa-signal"></i>';
+        if (rssi >= -70) return '<i class="fas fa-signal"></i>';
+        return '<i class="fas fa-signal"></i>';
+    }
+
+    // Modal
+    displayDeviceModal(info) {
+        this.currentDeviceInfo = info;
+        
+        const modal = document.getElementById('device-modal');
+        const body = document.getElementById('modal-body');
+        
+        const trustBtn = document.getElementById('modal-trust-btn');
+        trustBtn.innerHTML = info.trusted ? 
+            '<i class="fas fa-shield-alt"></i> Untrust' : 
+            '<i class="fas fa-shield-alt"></i> Trust';
+        
+        body.innerHTML = `
+            <div class="device-detail">
+                <div class="detail-row">
+                    <label>Name:</label>
+                    <span>${info.name || 'Unknown'}</span>
+                </div>
+                <div class="detail-row">
+                    <label>MAC Address:</label>
+                    <span>${info.mac}</span>
+                </div>
+                <div class="detail-row">
+                    <label>Paired:</label>
+                    <span class="badge ${info.paired ? 'badge-success' : 'badge-secondary'}">
+                        ${info.paired ? 'Yes' : 'No'}
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <label>Connected:</label>
+                    <span class="badge ${info.connected ? 'badge-success' : 'badge-secondary'}">
+                        ${info.connected ? 'Yes' : 'No'}
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <label>Trusted:</label>
+                    <span class="badge ${info.trusted ? 'badge-success' : 'badge-secondary'}">
+                        ${info.trusted ? 'Yes' : 'No'}
+                    </span>
+                </div>
+                ${info.battery ? `
+                <div class="detail-row">
+                    <label>Battery:</label>
+                    <span><i class="fas fa-battery-three-quarters"></i> ${info.battery}%</span>
+                </div>
+                ` : ''}
+                ${info.rssi ? `
+                <div class="detail-row">
+                    <label>Signal Strength:</label>
+                    <span>${info.rssi} dBm</span>
+                </div>
+                ` : ''}
+                ${info.icon ? `
+                <div class="detail-row">
+                    <label>Device Type:</label>
+                    <span>${info.icon}</span>
+                </div>
+                ` : ''}
+                ${info.uuids && info.uuids.length > 0 ? `
+                <div class="detail-row">
+                    <label>Supported Profiles:</label>
+                    <div class="profile-list">
+                        ${info.uuids.map(u => `<span class="badge badge-info">${u.name}</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+        
+        modal.classList.remove('hidden');
+    }
+
+    closeModal() {
+        document.getElementById('device-modal').classList.add('hidden');
+        this.currentDeviceMac = null;
+        this.currentDeviceInfo = null;
+    }
+
+    async toggleTrust() {
+        if (!this.currentDeviceMac) return;
+        
+        try {
+            const isTrusted = this.currentDeviceInfo?.trusted || false;
+            
+            if (isTrusted) {
+                await this.api.untrustDevice(this.currentDeviceMac);
+                this.showToast('Device untrusted', 'success');
+            } else {
+                await this.api.trustDevice(this.currentDeviceMac);
+                this.showToast('Device trusted', 'success');
+            }
+            
+            // Refresh device info
+            await this.showDeviceInfo(this.currentDeviceMac);
+        } catch (error) {
+            this.showToast(`Failed: ${error.message}`, 'error');
+        }
+    }
+
+    async removeDeviceFromModal() {
+        if (!this.currentDeviceMac) return;
+        
+        this.closeModal();
+        await this.removeDevice(this.currentDeviceMac);
+    }
+
+    // Tab Switching
+    switchTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            if (btn.dataset.tab === tabName) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            if (content.id === `${tabName}-devices`) {
+                content.classList.add('active');
+            } else {
+                content.classList.remove('active');
+            }
+        });
+    }
+
+    // UI Helpers
+    showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        const icon = toast.querySelector('.toast-icon');
+        const msg = toast.querySelector('.toast-message');
+        
+        // Set icon based on type
+        const icons = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            info: 'fa-info-circle',
+            warning: 'fa-exclamation-triangle'
+        };
+        
+        icon.className = `toast-icon fas ${icons[type] || icons.info}`;
+        msg.textContent = message;
+        toast.className = `toast toast-${type}`;
+        
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 5000);
+    }
+
+    showLoading(text = 'Processing...') {
+        const overlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        loadingText.textContent = text;
+        overlay.classList.remove('hidden');
+    }
+
+    hideLoading() {
+        document.getElementById('loading-overlay').classList.add('hidden');
+    }
+}
+
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    window.bluetoothManager = new BluetoothManager();
+});

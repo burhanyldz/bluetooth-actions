@@ -1,0 +1,658 @@
+# Home Assistant Bluetooth Manager Add-on - Comprehensive Development Prompt
+
+## Project Overview
+Create a complete Home Assistant add-on that provides a web-based graphical user interface (GUI) for managing Bluetooth connections on Home Assistant OS. This add-on will bridge user interface actions to command-line `bluetoothctl` commands, eliminating the need for terminal access.
+
+## Context & Problem Statement
+Home Assistant's built-in Bluetooth integration primarily supports BLE (Bluetooth Low Energy) devices but has limited support for classic Bluetooth (BR/EDR) devices like audio speakers and headphones. Users currently need to:
+1. SSH into Home Assistant OS
+2. Use `bluetoothctl` command-line tool
+3. Manually run commands like `scan on`, `pair`, `trust`, `connect`
+
+This is cumbersome and not user-friendly. We need a web-based GUI that makes Bluetooth management accessible to non-technical users.
+
+## Target Use Cases
+1. **Pairing Bluetooth audio devices** (speakers, headphones) with Home Assistant
+2. **Managing connections** - connect, disconnect, remove devices
+3. **Monitoring device status** - connection state, battery level, signal strength (RSSI)
+4. **Viewing available devices** - scan for nearby Bluetooth devices
+5. **Device management** - trust/untrust devices for auto-reconnection
+
+## Technical Requirements
+
+### Add-on Architecture
+The add-on should follow Home Assistant's add-on structure:
+
+```
+bluetooth-manager/
+├── config.yaml           # Add-on metadata and configuration
+├── Dockerfile           # Container definition
+├── run.sh              # Startup script
+├── rootfs/             # Root filesystem for the container
+│   └── etc/
+│       └── services.d/
+│           └── bluetooth-manager/
+│               ├── run           # Service run script
+│               └── finish        # Service finish script
+├── backend/            # Python backend application
+│   ├── app.py         # Main Flask/FastAPI application
+│   ├── bluetooth_manager.py  # Bluetooth operations module
+│   ├── requirements.txt
+│   └── utils.py       # Helper functions
+└── web/               # Frontend application
+    ├── index.html
+    ├── css/
+    │   └── style.css
+    ├── js/
+    │   ├── app.js     # Main application logic
+    │   └── api.js     # API communication module
+    └── assets/
+        └── icons/     # Bluetooth icons, loading spinners, etc.
+```
+
+### Backend Specifications
+
+**Technology Stack:**
+- **Language**: Python 3.11+
+- **Framework**: Flask or FastAPI (recommend FastAPI for better async support)
+- **Communication**: REST API + WebSocket for real-time updates
+- **Bluetooth Interface**: Execute `bluetoothctl` commands via Python's `subprocess` module
+
+**Core Backend Functionality:**
+
+1. **Bluetooth Controller Management**
+   - Get list of available Bluetooth adapters (`bluetoothctl list`)
+   - Power on/off adapters (`bluetoothctl power on/off`)
+   - Get adapter information (`bluetoothctl show`)
+
+2. **Device Scanning**
+   - Start scanning (`bluetoothctl scan on`)
+   - Stop scanning (`bluetoothctl scan off`)
+   - Parse scan results in real-time
+   - Extract: device MAC address, name, RSSI (signal strength), device type
+
+3. **Device Pairing & Management**
+   - Pair device (`bluetoothctl pair MAC_ADDRESS`)
+   - Trust device (`bluetoothctl trust MAC_ADDRESS`)
+   - Untrust device (`bluetoothctl untrust MAC_ADDRESS`)
+   - Remove device (`bluetoothctl remove MAC_ADDRESS`)
+
+4. **Connection Management**
+   - Connect to device (`bluetoothctl connect MAC_ADDRESS`)
+   - Disconnect from device (`bluetoothctl disconnect MAC_ADDRESS`)
+   - Get connection status
+
+5. **Device Information**
+   - Get detailed device info (`bluetoothctl info MAC_ADDRESS`)
+   - Parse and extract:
+     - Device name and alias
+     - Paired/Bonded/Trusted/Connected status
+     - Battery percentage (if supported)
+     - Supported UUIDs (profiles)
+     - Device class and icon
+     - RSSI (signal strength)
+
+6. **Error Handling**
+   - Catch and parse bluetoothctl error messages
+   - Return user-friendly error messages
+   - Handle timeouts (page timeout, connection timeout)
+   - Handle "device not found" errors
+   - Handle "already paired" errors
+
+**API Endpoints Required:**
+
+```
+GET  /api/adapters                    # List Bluetooth adapters
+POST /api/adapters/{id}/power         # Power on/off adapter
+GET  /api/adapters/{id}/info          # Get adapter details
+
+POST /api/scan/start                  # Start scanning
+POST /api/scan/stop                   # Stop scanning
+GET  /api/devices                     # Get all known devices
+GET  /api/devices/discovered          # Get currently discovered devices
+
+POST /api/devices/{mac}/pair          # Pair with device
+POST /api/devices/{mac}/trust         # Trust device
+POST /api/devices/{mac}/untrust       # Untrust device
+POST /api/devices/{mac}/connect       # Connect to device
+POST /api/devices/{mac}/disconnect    # Disconnect from device
+DELETE /api/devices/{mac}             # Remove device
+GET  /api/devices/{mac}/info          # Get detailed device info
+
+WebSocket /ws/scan                    # Real-time scan updates
+WebSocket /ws/devices                 # Real-time device status updates
+```
+
+**Example Python Code Structure:**
+
+```python
+# bluetooth_manager.py
+import subprocess
+import re
+import json
+from typing import Dict, List, Optional
+
+class BluetoothManager:
+    def __init__(self):
+        self.scanning = False
+        
+    def execute_command(self, command: str) -> tuple[int, str, str]:
+        """Execute bluetoothctl command and return exit code, stdout, stderr"""
+        result = subprocess.run(
+            ['bluetoothctl', '--'] + command.split(),
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return result.returncode, result.stdout, result.stderr
+    
+    def list_adapters(self) -> List[Dict]:
+        """Get list of Bluetooth adapters"""
+        returncode, stdout, stderr = self.execute_command('list')
+        # Parse output and return list of adapters
+        pass
+    
+    def start_scan(self) -> bool:
+        """Start Bluetooth scanning"""
+        returncode, stdout, stderr = self.execute_command('scan on')
+        self.scanning = True
+        return returncode == 0
+    
+    def get_device_info(self, mac_address: str) -> Dict:
+        """Get detailed information about a device"""
+        returncode, stdout, stderr = self.execute_command(f'info {mac_address}')
+        # Parse output into structured dict
+        pass
+    
+    def connect_device(self, mac_address: str) -> tuple[bool, str]:
+        """Connect to a device, return success status and message"""
+        returncode, stdout, stderr = self.execute_command(f'connect {mac_address}')
+        if returncode == 0:
+            return True, "Connected successfully"
+        else:
+            # Parse error message
+            error_msg = self._parse_error(stderr)
+            return False, error_msg
+    
+    def _parse_error(self, error_output: str) -> str:
+        """Convert bluetoothctl errors to user-friendly messages"""
+        if "page-timeout" in error_output:
+            return "Device not found or not responding. Make sure device is in pairing mode."
+        elif "org.bluez.Error.AlreadyExists" in error_output:
+            return "Device is already paired."
+        elif "org.bluez.Error.NotReady" in error_output:
+            return "Bluetooth adapter not ready. Try restarting."
+        # ... more error cases
+        return error_output
+```
+
+### Frontend Specifications
+
+**Technology Stack:**
+- **Pure JavaScript** (vanilla JS, no frameworks required) OR **React** if preferred
+- **CSS Framework**: Tailwind CSS or Bootstrap for responsive design
+- **WebSocket Client**: For real-time updates
+- **Fetch API**: For REST API calls
+
+**UI Components Needed:**
+
+1. **Header Section**
+   - App title: "Bluetooth Manager"
+   - Bluetooth adapter selector (if multiple adapters)
+   - Adapter power on/off toggle
+   - Current adapter status indicator
+
+2. **Scanning Section**
+   - "Start Scan" / "Stop Scan" button
+   - Scanning status indicator (animated icon when scanning)
+   - Scan duration counter
+
+3. **Discovered Devices List**
+   - Real-time list of devices found during scanning
+   - For each device show:
+     - Device name
+     - MAC address (small, gray text)
+     - Signal strength (RSSI) with visual indicator (bars)
+     - Device type icon (headphones, speaker, phone, etc.)
+     - "Pair & Connect" button
+   - Sort by signal strength (strongest first)
+   - Filter options (audio devices only, all devices)
+
+4. **Paired Devices List**
+   - List of all paired devices
+   - For each device show:
+     - Device name
+     - Connection status (Connected/Disconnected) with color indicator
+     - Battery level (if available) with icon
+     - Action buttons:
+       - Connect/Disconnect (toggle based on status)
+       - Remove (trash icon)
+       - Info (i icon - shows detailed device info in modal)
+   - Group by: Connected devices (top), Disconnected devices (bottom)
+
+5. **Device Detail Modal**
+   - Opens when clicking "Info" on a device
+   - Shows all device information:
+     - Name, Alias, MAC Address
+     - Device Class, Icon
+     - Paired, Bonded, Trusted, Connected status
+     - Battery percentage
+     - Supported profiles (UUIDs) with friendly names
+     - RSSI
+     - Last connected timestamp (if available)
+   - Actions: Trust/Untrust, Remove
+
+6. **Status/Notification Area**
+   - Toast notifications for actions:
+     - "Scanning started"
+     - "Device paired successfully"
+     - "Connected to Piranha-7801"
+     - Error messages
+   - Auto-dismiss after 5 seconds
+   - Different colors for success (green), error (red), info (blue)
+
+7. **Loading States**
+   - Show loading spinner when:
+     - Connecting to device
+     - Pairing device
+     - Removing device
+   - Disable buttons during operations
+
+**UI/UX Requirements:**
+- **Responsive design** - works on mobile, tablet, desktop
+- **Dark mode support** - matches Home Assistant's theme
+- **Real-time updates** - device list updates automatically via WebSocket
+- **Visual feedback** - immediate response to all user actions
+- **Error handling** - clear error messages, no technical jargon
+- **Accessibility** - proper ARIA labels, keyboard navigation
+
+**Example Frontend Code Structure:**
+
+```javascript
+// api.js - API communication
+class BluetoothAPI {
+    constructor(baseURL) {
+        this.baseURL = baseURL;
+        this.ws = null;
+    }
+    
+    async startScan() {
+        const response = await fetch(`${this.baseURL}/api/scan/start`, {
+            method: 'POST'
+        });
+        return response.json();
+    }
+    
+    async connectDevice(macAddress) {
+        const response = await fetch(`${this.baseURL}/api/devices/${macAddress}/connect`, {
+            method: 'POST'
+        });
+        return response.json();
+    }
+    
+    connectWebSocket(onMessage) {
+        this.ws = new WebSocket(`ws://${window.location.host}/ws/devices`);
+        this.ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            onMessage(data);
+        };
+    }
+}
+
+// app.js - Main application logic
+class BluetoothManager {
+    constructor() {
+        this.api = new BluetoothAPI('');
+        this.devices = new Map();
+        this.scanning = false;
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.api.connectWebSocket(this.handleWebSocketMessage.bind(this));
+        this.loadDevices();
+    }
+    
+    setupEventListeners() {
+        document.getElementById('scan-btn').addEventListener('click', () => {
+            this.toggleScan();
+        });
+        // ... more listeners
+    }
+    
+    async toggleScan() {
+        if (this.scanning) {
+            await this.api.stopScan();
+            this.scanning = false;
+            this.updateScanButton();
+        } else {
+            await this.api.startScan();
+            this.scanning = true;
+            this.updateScanButton();
+        }
+    }
+    
+    handleWebSocketMessage(data) {
+        if (data.type === 'device_discovered') {
+            this.addDiscoveredDevice(data.device);
+        } else if (data.type === 'device_connected') {
+            this.updateDeviceStatus(data.mac, 'connected');
+            this.showNotification(`Connected to ${data.name}`, 'success');
+        }
+    }
+    
+    renderDevices() {
+        // Update DOM with current device list
+    }
+}
+```
+
+### Home Assistant Integration
+
+**config.yaml Structure:**
+
+```yaml
+name: Bluetooth Manager
+version: "1.0.0"
+slug: bluetooth_manager
+description: Web-based GUI for managing Bluetooth connections
+url: https://github.com/yourusername/hassio-bluetooth-manager
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+init: false
+host_network: true
+privileged:
+  - SYS_ADMIN
+devices:
+  - /dev/bus/usb
+services:
+  - bluetooth:need
+boot: auto
+startup: application
+options:
+  log_level: info
+  port: 8099
+schema:
+  log_level: list(debug|info|warning|error)
+  port: port
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: Web interface
+image: ghcr.io/yourusername/bluetooth-manager-{arch}
+```
+
+**Key Configuration Notes:**
+- `host_network: true` - Required to access Bluetooth hardware
+- `privileged: SYS_ADMIN` - Required for Bluetooth operations
+- `services: bluetooth:need` - Ensures Bluetooth service is available
+- `devices: /dev/bus/usb` - Access to USB Bluetooth adapters
+
+### Dockerfile
+
+```dockerfile
+ARG BUILD_FROM
+FROM $BUILD_FROM
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    bluez \
+    bluez-deprecated \
+    dbus
+
+# Set working directory
+WORKDIR /app
+
+# Copy backend files
+COPY backend/requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+COPY web/ ./web/
+COPY run.sh /
+
+# Make run script executable
+RUN chmod +x /run.sh
+
+# Expose port
+EXPOSE 8099
+
+# Start script
+CMD ["/run.sh"]
+```
+
+### Startup Script (run.sh)
+
+```bash
+#!/usr/bin/with-contenv bashio
+
+# Get configuration
+PORT=$(bashio::config 'port')
+LOG_LEVEL=$(bashio::config 'log_level')
+
+bashio::log.info "Starting Bluetooth Manager on port ${PORT}..."
+
+# Start D-Bus if not running
+if ! pgrep -x "dbus-daemon" > /dev/null; then
+    bashio::log.info "Starting D-Bus..."
+    mkdir -p /var/run/dbus
+    dbus-daemon --system --nofork --nopidfile &
+    sleep 2
+fi
+
+# Start Bluetooth service if not running
+if ! pgrep -x "bluetoothd" > /dev/null; then
+    bashio::log.info "Starting Bluetooth service..."
+    /usr/libexec/bluetooth/bluetoothd &
+    sleep 2
+fi
+
+# Start Python backend
+bashio::log.info "Starting backend server..."
+cd /app
+python3 backend/app.py --port ${PORT} --log-level ${LOG_LEVEL}
+```
+
+## Specific Implementation Details
+
+### Parsing bluetoothctl Output
+
+Bluetoothctl output is text-based and needs parsing. Here are examples:
+
+**Device Discovery:**
+```
+[NEW] Device EA:F5:8D:24:E7:B2 Piranha-7801
+[CHG] Device EA:F5:8D:24:E7:B2 RSSI: 0xffffffc0 (-64)
+```
+
+**Device Info:**
+```
+Device EA:F5:8D:24:E7:B2 (public)
+        Name: Piranha-7801
+        Alias: Piranha-7801
+        Paired: yes
+        Connected: yes
+        Battery Percentage: 0x46 (70)
+```
+
+Parse these using regex patterns:
+```python
+# Device discovery
+DEVICE_PATTERN = r'\[NEW\] Device ([0-9A-F:]{17}) (.+)'
+RSSI_PATTERN = r'Device ([0-9A-F:]{17}) RSSI: (0x[0-9a-f]+) \((-?\d+)\)'
+
+# Device info
+INFO_PATTERNS = {
+    'name': r'Name: (.+)',
+    'paired': r'Paired: (yes|no)',
+    'connected': r'Connected: (yes|no)',
+    'battery': r'Battery Percentage: 0x[0-9a-f]+ \((\d+)\)'
+}
+```
+
+### Real-time Scanning Implementation
+
+Scanning needs to be asynchronous and parse output in real-time:
+
+```python
+import asyncio
+import subprocess
+
+async def scan_continuously(callback):
+    """Continuously scan and call callback with discovered devices"""
+    process = await asyncio.create_subprocess_exec(
+        'bluetoothctl', 'scan', 'on',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    
+    while True:
+        line = await process.stdout.readline()
+        if not line:
+            break
+        
+        line = line.decode('utf-8').strip()
+        
+        # Parse device discovery
+        match = re.search(DEVICE_PATTERN, line)
+        if match:
+            mac, name = match.groups()
+            await callback({
+                'mac': mac,
+                'name': name,
+                'discovered_at': time.time()
+            })
+        
+        # Parse RSSI updates
+        match = re.search(RSSI_PATTERN, line)
+        if match:
+            mac, rssi_hex, rssi_int = match.groups()
+            await callback({
+                'mac': mac,
+                'rssi': int(rssi_int)
+            })
+```
+
+### WebSocket Updates
+
+Use WebSocket to push real-time updates to frontend:
+
+```python
+from fastapi import WebSocket
+
+@app.websocket("/ws/devices")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    
+    async def send_update(data):
+        await websocket.send_json(data)
+    
+    # Start scanning with callback
+    scan_task = asyncio.create_task(scan_continuously(send_update))
+    
+    try:
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        scan_task.cancel()
+```
+
+## Testing Requirements
+
+1. **Backend Tests**
+   - Test bluetoothctl command execution
+   - Test output parsing
+   - Test error handling
+   - Mock bluetoothctl for unit tests
+
+2. **Frontend Tests**
+   - Test UI interactions
+   - Test WebSocket connection
+   - Test error display
+
+3. **Integration Tests**
+   - Test full workflow: scan → pair → trust → connect
+   - Test with actual Bluetooth device
+
+## Documentation Requirements
+
+1. **README.md**
+   - Installation instructions
+   - Configuration options
+   - Screenshots
+   - Troubleshooting guide
+
+2. **In-app Help**
+   - Tooltips for buttons
+   - Help modal explaining Bluetooth concepts
+   - Common error solutions
+
+## Success Criteria
+
+The add-on is successful when:
+1. ✅ Users can scan for Bluetooth devices without using terminal
+2. ✅ Users can pair and connect to Bluetooth audio devices with 2-3 clicks
+3. ✅ Connection status updates in real-time
+4. ✅ Battery levels display for supported devices
+5. ✅ Error messages are clear and actionable
+6. ✅ Works on Raspberry Pi 3/4 with built-in Bluetooth
+7. ✅ Works with USB Bluetooth adapters
+8. ✅ UI is responsive and works on mobile devices
+
+## Development Phases
+
+**Phase 1: Backend Core**
+- Implement BluetoothManager class
+- Create REST API endpoints
+- Test with manual API calls
+
+**Phase 2: Basic Frontend**
+- Create HTML structure
+- Implement scan and device list display
+- Connect to backend API
+
+**Phase 3: WebSocket Integration**
+- Add real-time updates
+- Implement scanning with live results
+
+**Phase 4: Full Device Management**
+- Add pair, trust, connect, disconnect, remove
+- Device detail modal
+- Error handling
+
+**Phase 5: Polish & Testing**
+- Improve UI/UX
+- Add loading states
+- Add notifications
+- Test on real hardware
+- Write documentation
+
+## Additional Notes
+
+- **Security**: The add-on runs with elevated privileges. Validate all user inputs to prevent command injection.
+- **Performance**: Limit scan duration to 30 seconds to avoid battery drain
+- **Compatibility**: Test with various Bluetooth device types (speakers, headphones, keyboards)
+- **Future Enhancements**: 
+  - Support for Bluetooth LE devices
+  - Device grouping
+  - Connection automation (auto-reconnect)
+  - Integration with Home Assistant's media player entities
+
+## References & Resources
+
+- Home Assistant Add-on Development: https://developers.home-assistant.io/docs/add-ons
+- bluetoothctl documentation: Part of BlueZ project
+- FastAPI WebSocket documentation: https://fastapi.tiangolo.com/advanced/websockets/
+- Home Assistant Ingress: For embedding the UI in Home Assistant's sidebar
+
+---
+
+This prompt provides everything needed to build a complete, production-ready Bluetooth Manager add-on for Home Assistant. The implementation should prioritize user experience, reliability, and clear error messaging.

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bluetooth Manager</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-bluetooth-b"></i> Bluetooth Manager</h1>
+                <div class="adapter-status">
+                    <span id="adapter-name">Loading...</span>
+                    <button id="power-toggle" class="btn btn-secondary">
+                        <i class="fas fa-power-off"></i> Power
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Scanning Section -->
+        <section class="scan-section">
+            <div class="scan-controls">
+                <button id="scan-btn" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Start Scan
+                </button>
+                <div id="scan-status" class="scan-status hidden">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Scanning...</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="paired">
+                <i class="fas fa-link"></i> Paired Devices
+            </button>
+            <button class="tab-btn" data-tab="discovered">
+                <i class="fas fa-search"></i> Discovered Devices
+            </button>
+        </div>
+
+        <!-- Paired Devices List -->
+        <section id="paired-devices" class="devices-section tab-content active">
+            <div class="section-header">
+                <h2>Paired Devices</h2>
+                <button id="refresh-paired" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            
+            <div id="paired-list" class="device-list">
+                <div class="empty-state">
+                    <i class="fas fa-bluetooth-b"></i>
+                    <p>No paired devices</p>
+                    <small>Scan for devices to pair with them</small>
+                </div>
+            </div>
+        </section>
+
+        <!-- Discovered Devices List -->
+        <section id="discovered-devices" class="devices-section tab-content">
+            <div class="section-header">
+                <h2>Discovered Devices</h2>
+                <div class="filter-controls">
+                    <label>
+                        <input type="checkbox" id="filter-audio" checked>
+                        Audio devices only
+                    </label>
+                </div>
+            </div>
+            
+            <div id="discovered-list" class="device-list">
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <p>Start scanning to discover devices</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Device Detail Modal -->
+    <div id="device-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Device Information</h2>
+                <button class="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Device details will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button id="modal-trust-btn" class="btn btn-secondary">
+                    <i class="fas fa-shield-alt"></i> Trust
+                </button>
+                <button id="modal-remove-btn" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
+                <button id="modal-close-btn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <div class="toast-content">
+            <i class="toast-icon"></i>
+            <span class="toast-message"></span>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin fa-3x"></i>
+            <p id="loading-text">Processing...</p>
+        </div>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

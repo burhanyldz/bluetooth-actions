@@ -1,0 +1,39 @@
+{
+  "name": "Bluetooth Manager",
+  "version": "1.0.0",
+  "slug": "bluetooth_manager",
+  "description": "Web-based GUI for managing Bluetooth connections in Home Assistant",
+  "url": "https://github.com/burhanyldz/bluetooth-actions",
+  "codenotary": "burhan.yildiz@example.com",
+  "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
+  "startup": "application",
+  "boot": "auto",
+  "init": false,
+  "host_network": true,
+  "privileged": ["SYS_ADMIN"],
+  "devices": ["/dev/bus/usb"],
+  "services": ["bluetooth:need"],
+  "options": {
+    "log_level": "info",
+    "port": 8099
+  },
+  "schema": {
+    "log_level": "list(debug|info|warning|error)",
+    "port": "port"
+  },
+  "ports": {
+    "8099/tcp": 8099
+  },
+  "ports_description": {
+    "8099/tcp": "Web interface"
+  },
+  "ingress": true,
+  "ingress_port": 8099,
+  "panel_icon": "mdi:bluetooth",
+  "panel_title": "Bluetooth Manager",
+  "homeassistant_api": false,
+  "hassio_api": false,
+  "hassio_role": "default",
+  "auth_api": false,
+  "backup": "cold"
+}
