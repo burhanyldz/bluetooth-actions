@@ -4,7 +4,7 @@
   "slug": "bluetooth_manager",
   "description": "Web-based GUI for managing Bluetooth connections in Home Assistant",
   "url": "https://github.com/burhanyldz/bluetooth-actions",
-  "codenotary": "burhan.yildiz@example.com",
+  "codenotary": "burhanyld.z@gmail.com",
   "arch": ["armhf", "armv7", "aarch64", "amd64", "i386"],
   "startup": "application",
   "boot": "auto",
