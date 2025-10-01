@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Copy backend files
 COPY backend/requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 COPY backend/ ./backend/
 COPY web/ ./web/
