@@ -115,13 +115,21 @@ class BluetoothManager {
     async loadAdapterInfo() {
         try {
             const adapters = await this.api.getAdapters();
-            if (adapters.length === 0) {
+            console.log('Adapters response:', adapters);
+            console.log('Adapters type:', typeof adapters);
+            console.log('Is array:', Array.isArray(adapters));
+            
+            if (!adapters || !Array.isArray(adapters) || adapters.length === 0) {
                 this.showToast('No Bluetooth adapter found', 'error');
+                console.error('Invalid adapters response:', adapters);
                 return;
             }
             
             const adapterId = adapters[0].id;
+            console.log('Adapter ID:', adapterId);
+            
             const info = await this.api.getAdapterInfo(adapterId);
+            console.log('Adapter info:', info);
             this.currentAdapter = info;  // Store the full adapter info
             
             const adapterName = document.getElementById('adapter-name');

@@ -42,7 +42,9 @@ class BluetoothAPI {
 
     // Adapter endpoints
     async getAdapters() {
-        return this.request('/api/adapters');
+        const response = await this.request('/api/adapters');
+        // Backend returns {adapters: [...]}
+        return response.adapters || [];
     }
 
     async getAdapterInfo(adapterId = 'default') {
