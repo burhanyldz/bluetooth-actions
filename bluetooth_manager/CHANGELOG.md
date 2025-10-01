@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2 (2025-10-01)
+
+### Fixed
+- Corrected bluetoothd startup path to use the system bluetoothd (improves compatibility with Alpine/Home Assistant base images).
+- Improved scanning implementation: use interactive bluetoothctl mode with non-blocking reads and graceful shutdown to make scan start/stop responsive and reliable.
+- Better error handling and stability during scan and adapter operations.
+
+## 1.0.1 (2025-10-01)
+
+### Fixed
+- Use interactive bluetoothctl execution (stdin piping) to avoid intermittent HTTP 500 errors when toggling adapter power.
+- Added timeouts and improved command execution handling to reduce hangs and unclear failures.
+
 ## 1.0.0 (2025-10-01)
 
 ### Added
