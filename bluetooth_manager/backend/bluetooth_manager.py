@@ -50,14 +50,24 @@ class BluetoothManager:
             Tuple of (exit_code, stdout, stderr)
         """
         try:
-            result = subprocess.run(
-                ['bluetoothctl', '--'] + command.split(),
-                capture_output=True,
-                text=True,
+            # Use echo piping for non-interactive commands
+            process = subprocess.Popen(
+                ['bluetoothctl'],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # Send command and exit
+            stdout, stderr = process.communicate(
+                input=f"{command}\nexit\n",
                 timeout=timeout
             )
-            return result.returncode, result.stdout, result.stderr
+            
+            return process.returncode, stdout, stderr
         except subprocess.TimeoutExpired:
+            process.kill()
             return -1, "", "Command timed out"
         except Exception as e:
             return -1, "", str(e)
