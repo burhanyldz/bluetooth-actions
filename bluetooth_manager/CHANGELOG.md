@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.3 (2025-10-01)
+
+### Fixed
+- **Critical:** Use host D-Bus socket instead of starting own D-Bus daemon (fixes all Bluetooth communication issues)
+- Add `host_dbus: true` to config.yaml for proper D-Bus access
+- Add comprehensive logging throughout bluetoothctl execution to help diagnose issues
+- Improve error detection for adapter power commands (check for "succeeded" in output)
+- Add startup diagnostics to test D-Bus and bluetoothctl connectivity
+
+### Added
+- Detailed logging in all Bluetooth operations to help troubleshoot permission and connectivity issues
+- Startup tests to verify D-Bus connection and bluetoothctl availability
+
 ## 1.0.2 (2025-10-01)
 
 ### Fixed

@@ -49,14 +49,20 @@ class BluetoothManager:
         Returns:
             Tuple of (exit_code, stdout, stderr)
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
+            logger.info(f"Executing bluetoothctl command: {command}")
+            
             # Use echo piping for non-interactive commands
             process = subprocess.Popen(
                 ['bluetoothctl'],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                env=subprocess.os.environ.copy()
             )
             
             # Send command and exit
@@ -65,11 +71,18 @@ class BluetoothManager:
                 timeout=timeout
             )
             
+            logger.info(f"Command '{command}' - Return code: {process.returncode}")
+            logger.debug(f"Command '{command}' - Stdout: {stdout[:200]}")
+            if stderr:
+                logger.warning(f"Command '{command}' - Stderr: {stderr[:200]}")
+            
             return process.returncode, stdout, stderr
         except subprocess.TimeoutExpired:
+            logger.error(f"Command '{command}' timed out after {timeout}s")
             process.kill()
             return -1, "", "Command timed out"
         except Exception as e:
+            logger.error(f"Command '{command}' failed with exception: {e}")
             return -1, "", str(e)
     
     def list_adapters(self) -> List[Dict]:
@@ -79,7 +92,11 @@ class BluetoothManager:
         Returns:
             List of adapter dictionaries with 'id', 'name', 'mac' keys
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         returncode, stdout, stderr = self.execute_command('list')
+        logger.info(f"list_adapters - Found output length: {len(stdout)} chars")
         
         adapters = []
         for line in stdout.split('\n'):
@@ -106,8 +123,12 @@ class BluetoothManager:
         Returns:
             Dictionary with adapter information
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         cmd = f'show {adapter_id}' if adapter_id else 'show'
         returncode, stdout, stderr = self.execute_command(cmd)
+        logger.info(f"get_adapter_info - Output: {stdout[:300]}")
         
         info = {'id': adapter_id}
         for line in stdout.split('\n'):
@@ -134,14 +155,22 @@ class BluetoothManager:
         Returns:
             Tuple of (success, message)
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         command = 'power on' if power_on else 'power off'
+        logger.info(f"Setting adapter power: {command}")
         returncode, stdout, stderr = self.execute_command(command)
         
-        if returncode == 0:
+        logger.info(f"set_adapter_power result - returncode: {returncode}, stdout: {stdout}, stderr: {stderr}")
+        
+        if returncode == 0 or "succeeded" in stdout.lower() or "changing" in stdout.lower():
             status = "on" if power_on else "off"
             return True, f"Adapter powered {status}"
         else:
-            return False, self._parse_error(stderr)
+            error_msg = self._parse_error(stderr) if stderr else stdout
+            logger.error(f"Power command failed: {error_msg}")
+            return False, error_msg
     
     async def start_scan_async(self, callback: Callable[[Dict], None]) -> None:
         """

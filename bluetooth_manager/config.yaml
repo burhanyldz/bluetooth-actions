@@ -1,5 +1,5 @@
 name: Bluetooth Manager
-version: "1.0.2"
+version: "1.0.3"
 slug: bluetooth_manager
 description: Web-based GUI for managing Bluetooth connections
 url: https://github.com/burhanyldz/bluetooth-actions
@@ -12,6 +12,7 @@ arch:
 image: "ghcr.io/burhanyldz/{arch}-addon-bluetooth_manager"
 init: false
 host_network: true
+host_dbus: true
 privileged:
   - SYS_ADMIN
 devices:

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-10-01
+
+### Fixed
+- **Critical:** Use host D-Bus socket instead of starting own daemon - fixes all Bluetooth communication
+- Add `host_dbus: true` configuration for proper Home Assistant Bluetooth access
+- Comprehensive logging added throughout to diagnose permission and connectivity issues
+- Improved error detection for adapter power commands
+
+### Added
+- Startup diagnostics to verify D-Bus and bluetoothctl connectivity
+- Detailed logging in bluetooth_manager.py for all operations
+
 ## [1.0.2] - 2025-10-01
 
 ### Fixed
