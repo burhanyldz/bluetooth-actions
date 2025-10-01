@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4 (2025-10-01)
+
+### Fixed
+- Corrected D-Bus socket path from `/host/run/dbus/system_bus_socket` to `/run/dbus/system_bus_socket` (Home Assistant mounts it at /run/dbus when host_dbus is enabled)
+- Enhanced startup diagnostics to check if D-Bus socket file exists and list available files
+- Add timeout to bluetoothctl test command to prevent hangs
+- Better error messages showing actual socket paths
+
 ## 1.0.3 (2025-10-01)
 
 ### Fixed
