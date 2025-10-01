@@ -9,6 +9,7 @@ arch:
   - aarch64
   - amd64
   - i386
+image: "ghcr.io/burhanyldz/{arch}-addon-bluetooth_manager"
 init: false
 host_network: true
 privileged:
