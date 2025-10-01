@@ -5,13 +5,17 @@
 
 class BluetoothManager {
     constructor() {
-        this.api = new BluetoothAPI();
+        // Get base path for ingress support (e.g., /api/hassio_ingress/...)
+        const basePath = window.location.pathname.replace(/\/+$/, '').replace(/\/index\.html$/, '');
+        this.api = new BluetoothAPI(basePath);
         this.pairedDevices = new Map();
         this.discoveredDevices = new Map();
         this.scanning = false;
         this.currentAdapter = null;
         this.currentDeviceMac = null;
         this.statusCheckInterval = null;
+        
+        console.log('Base path:', basePath);
         
         this.init();
     }

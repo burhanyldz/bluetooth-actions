@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2025-10-02
+
+### Fixed
+- **Critical:** Home Assistant ingress mode now works correctly
+- Fixed 404 errors for CSS, JavaScript, and image assets when using ingress
+- Changed all resource paths from absolute (`/static/...`) to relative (`static/...`) for ingress compatibility
+- WebSocket connection properly handles Home Assistant proxy paths
+- API requests now correctly use base path when running under ingress
+
+### Improved
+- Automatic base path detection for seamless ingress integration
+- Enhanced debugging with base path and WebSocket URL logging
+- Add-on now works both standalone and embedded in Home Assistant sidebar
+
 ## [1.0.6] - 2025-10-02
 
 ### Fixed

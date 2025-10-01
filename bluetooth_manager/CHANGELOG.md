@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.7 (2025-10-02)
+
+### Fixed
+- **Critical:** Ingress mode now works correctly with proper asset loading
+- Changed all resource paths from absolute (`/static/...`) to relative (`static/...`)
+- WebSocket connection now correctly handles ingress proxy paths
+- API requests now use proper base path for ingress support
+
+### Improved
+- Better path detection for Home Assistant ingress integration
+- Debug logging for base path and WebSocket URL
+
 ## 1.0.6 (2025-10-02)
 
 ### Fixed

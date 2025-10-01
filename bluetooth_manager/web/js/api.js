@@ -106,7 +106,12 @@ class BluetoothAPI {
 
     initWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsURL = `${protocol}//${window.location.host}/ws/scan`;
+        // Get the base path from the current location (for ingress support)
+        const basePath = window.location.pathname.replace(/\/+$/, ''); // Remove trailing slash
+        const wsPath = basePath ? `${basePath}/ws/scan` : '/ws/scan';
+        const wsURL = `${protocol}//${window.location.host}${wsPath}`;
+        
+        console.log('Connecting WebSocket to:', wsURL);
 
         try {
             this.ws = new WebSocket(wsURL);
