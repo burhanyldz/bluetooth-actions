@@ -1,5 +1,5 @@
 name: Bluetooth Manager
-version: "1.0.4"
+version: "1.0.5"
 slug: bluetooth_manager
 description: Web-based GUI for managing Bluetooth connections
 url: https://github.com/burhanyldz/bluetooth-actions

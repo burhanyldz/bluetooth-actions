@@ -11,6 +11,7 @@ class BluetoothManager {
         this.scanning = false;
         this.currentAdapter = null;
         this.currentDeviceMac = null;
+        this.statusCheckInterval = null;
         
         this.init();
     }
@@ -30,6 +31,13 @@ class BluetoothManager {
         // Load initial data
         await this.loadAdapterInfo();
         await this.loadPairedDevices();
+        
+        // Start periodic status check for paired devices (every 5 seconds)
+        this.statusCheckInterval = setInterval(() => {
+            if (!this.scanning) {
+                this.loadPairedDevices();
+            }
+        }, 5000);
     }
 
     setupEventListeners() {
@@ -94,10 +102,13 @@ class BluetoothManager {
             adapterName.textContent = info.alias || info.name || 'Bluetooth Adapter';
             
             const powerBtn = document.getElementById('power-toggle');
-            if (info.powered) {
+            // Check powered status from info
+            if (info.powered === true || info.powered === 'yes') {
                 powerBtn.classList.add('active');
+                powerBtn.innerHTML = '<i class="fas fa-power-off"></i> Power Off';
             } else {
                 powerBtn.classList.remove('active');
+                powerBtn.innerHTML = '<i class="fas fa-power-off"></i> Power On';
             }
         } catch (error) {
             this.showToast('Failed to load adapter info', 'error');
@@ -136,10 +147,18 @@ class BluetoothManager {
             this.updateScanButton();
             this.discoveredDevices.clear();
             this.renderDiscoveredDevices();
-            this.showToast('Scanning started', 'info');
+            this.showToast('Scanning started (will auto-stop after 30s)', 'info');
             
             // Auto-switch to discovered tab
             this.switchTab('discovered');
+            
+            // Auto-stop scan after 30 seconds
+            setTimeout(async () => {
+                if (this.scanning) {
+                    await this.stopScan();
+                    this.showToast('Scan completed', 'success');
+                }
+            }, 30000);
         } catch (error) {
             this.showToast(`Failed to start scan: ${error.message}`, 'error');
         }
@@ -173,7 +192,12 @@ class BluetoothManager {
 
     // Device Management
     async loadPairedDevices() {
+        const refreshBtn = document.getElementById('refresh-paired');
         try {
+            // Add loading indicator
+            refreshBtn.innerHTML = '<i class="fas fa-sync fa-spin"></i>';
+            refreshBtn.disabled = true;
+            
             const response = await this.api.getDevices();
             this.pairedDevices.clear();
             
@@ -187,6 +211,10 @@ class BluetoothManager {
         } catch (error) {
             this.showToast('Failed to load devices', 'error');
             console.error('Error loading devices:', error);
+        } finally {
+            // Restore button
+            refreshBtn.innerHTML = '<i class="fas fa-sync"></i>';
+            refreshBtn.disabled = false;
         }
     }
 
@@ -239,29 +267,41 @@ class BluetoothManager {
     }
 
     async removeDevice(mac) {
-        if (!confirm('Are you sure you want to remove this device?')) {
-            return;
-        }
-        
-        try {
-            this.showLoading('Removing device...');
-            await this.api.removeDevice(mac);
-            this.pairedDevices.delete(mac);
-            this.renderPairedDevices();
-            this.showToast('Device removed', 'success');
-        } catch (error) {
-            this.showToast(`Failed to remove: ${error.message}`, 'error');
-        } finally {
-            this.hideLoading();
-        }
+        // Show custom confirmation modal instead of native alert
+        this.showConfirmation(
+            'Remove Device',
+            'Are you sure you want to remove this device? This will unpair the device.',
+            async () => {
+                try {
+                    this.showLoading('Removing device...');
+                    await this.api.removeDevice(mac);
+                    this.pairedDevices.delete(mac);
+                    this.renderPairedDevices();
+                    this.showToast('Device removed', 'success');
+                } catch (error) {
+                    this.showToast(`Failed to remove: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+        );
     }
 
     async showDeviceInfo(mac) {
         try {
             this.currentDeviceMac = mac;
+            
+            // Show modal immediately with loading state
+            const modal = document.getElementById('device-modal');
+            const body = document.getElementById('modal-body');
+            modal.classList.remove('hidden');
+            body.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading device information...</div>';
+            
+            // Then load data
             const info = await this.api.getDeviceInfo(mac);
             this.displayDeviceModal(info);
         } catch (error) {
+            this.closeModal();
             this.showToast(`Failed to get device info: ${error.message}`, 'error');
         }
     }
@@ -369,10 +409,18 @@ class BluetoothManager {
         const filterAudio = document.getElementById('filter-audio').checked;
         
         if (this.discoveredDevices.size === 0) {
+            const message = this.scanning ? 
+                'Scanning for devices...' : 
+                'No devices discovered yet';
+            const detail = this.scanning ? 
+                'Waiting for nearby Bluetooth devices...' : 
+                'Click "Start Scan" to discover nearby devices';
+                
             container.innerHTML = `
                 <div class="empty-state">
-                    <i class="fas fa-search"></i>
-                    <p>${this.scanning ? 'Scanning for devices...' : 'Start scanning to discover devices'}</p>
+                    <i class="fas fa-${this.scanning ? 'spinner fa-spin' : 'search'}"></i>
+                    <p>${message}</p>
+                    <small>${detail}</small>
                 </div>
             `;
             return;
@@ -410,7 +458,7 @@ class BluetoothManager {
     }
 
     createDeviceCard(device, isPaired) {
-        const icon = this.getDeviceIcon(device.name);
+        const icon = this.getDeviceIcon(device.name, isPaired ? device.connected : null);
         const signalBars = this.getSignalBars(device.rssi);
         
         if (isPaired) {
@@ -459,23 +507,23 @@ class BluetoothManager {
         }
     }
 
-    getDeviceIcon(name) {
-        if (!name) return '<i class="fas fa-bluetooth-b"></i>';
+    getDeviceIcon(name, isConnected) {
+        // Use SVG icons for device types
+        const svgStyle = 'width: 32px; height: 32px;';
         
-        const nameLower = name.toLowerCase();
-        if (nameLower.includes('headphone') || nameLower.includes('headset')) {
-            return '<i class="fas fa-headphones"></i>';
-        } else if (nameLower.includes('speaker') || nameLower.includes('sound')) {
-            return '<i class="fas fa-volume-up"></i>';
-        } else if (nameLower.includes('phone')) {
-            return '<i class="fas fa-mobile-alt"></i>';
-        } else if (nameLower.includes('keyboard')) {
-            return '<i class="fas fa-keyboard"></i>';
-        } else if (nameLower.includes('mouse')) {
-            return '<i class="fas fa-mouse"></i>';
-        } else {
-            return '<i class="fas fa-bluetooth-b"></i>';
+        // For paired devices, use connection-specific icons
+        if (isConnected !== null && isConnected !== undefined) {
+            if (isConnected) {
+                // Connected: blue signal icon
+                return `<svg xmlns="http://www.w3.org/2000/svg" style="${svgStyle}" viewBox="0 0 24 24" fill="#4CAF50"><path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/><circle cx="16" cy="12" r="1.5"/><circle cx="20" cy="12" r="1"/></svg>`;
+            } else {
+                // Disconnected: red slash icon
+                return `<svg xmlns="http://www.w3.org/2000/svg" style="${svgStyle}" viewBox="0 0 24 24" fill="#f44336"><path d="M13 5.83l1.88 1.88L13 9.59V5.83zm5.71 1.88L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 18.17v-3.76l1.88 1.88-1.88 1.88z"/><path d="M2 2L22 22" stroke="red" stroke-width="2"/></svg>`;
+            }
         }
+        
+        // For discovered devices: blue-on icon
+        return `<svg xmlns="http://www.w3.org/2000/svg" style="${svgStyle}" viewBox="0 0 24 24" fill="#2196F3"><path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/></svg>`;
     }
 
     isAudioDevice(name) {
@@ -658,6 +706,49 @@ class BluetoothManager {
 
     hideLoading() {
         document.getElementById('loading-overlay').classList.add('hidden');
+    }
+    
+    showConfirmation(title, message, onConfirm) {
+        // Create confirmation modal dynamically
+        const existingModal = document.getElementById('confirm-modal');
+        if (existingModal) existingModal.remove();
+        
+        const modal = document.createElement('div');
+        modal.id = 'confirm-modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>${title}</h2>
+                </div>
+                <div class="modal-body">
+                    <p>${message}</p>
+                </div>
+                <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+                    <button class="btn btn-danger" id="confirm-ok">Remove</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        modal.classList.remove('hidden');
+        
+        document.getElementById('confirm-cancel').addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        document.getElementById('confirm-ok').addEventListener('click', () => {
+            modal.remove();
+            onConfirm();
+        });
+        
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
     }
 }
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.5 (2025-10-01)
+
+### Added
+- **Backend:** Automatic 30-second timeout for Bluetooth scanning with proper cleanup
+- **Backend:** Comprehensive logging for all bluetoothctl commands (command, return code, stdout, stderr)
+- **Frontend:** Periodic connection status checks every 5 seconds for paired devices
+- **Frontend:** Custom confirmation modal replacing native JavaScript alert()
+- **Frontend:** Device info modal now displays immediately with loading spinner while data loads
+- **Frontend:** Refresh button shows loading indicator during paired device reload
+- **Frontend:** Device-specific SVG icons showing connection states (connected, disconnected, discovered)
+
+### Fixed
+- Power button now correctly reflects adapter powered state with proper on/off text
+- Discovered devices panel shows contextual messages based on scanning state
+- Scanning automatically stops after 30 seconds to prevent indefinite runs
+- Audio device filter is now unchecked by default
+- Header now displays icon.png instead of FontAwesome icon
+
+### Improved
+- Better error detection in adapter power commands (checks for "succeeded" in output)
+- More responsive UI with loading indicators across all async operations
+- Enhanced user experience with styled modals and immediate feedback
+
 ## 1.0.4 (2025-10-01)
 
 ### Fixed

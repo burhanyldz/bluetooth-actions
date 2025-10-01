@@ -179,10 +179,15 @@ class BluetoothManager:
         Args:
             callback: Async function to call with device updates
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if self.scanning:
+            logger.warning("Scan already running")
             return
         
         self.scanning = True
+        logger.info("Starting Bluetooth scan...")
         
         try:
             # Start bluetoothctl in interactive mode
@@ -197,20 +202,32 @@ class BluetoothManager:
             # Send scan on command
             process.stdin.write(b'scan on\n')
             await process.stdin.drain()
+            logger.info("Scan command sent to bluetoothctl")
             
             # Read output line by line
+            scan_start_time = asyncio.get_event_loop().time()
+            max_scan_duration = 30  # 30 seconds max scan
+            
             while self.scanning:
                 try:
+                    # Check if scan duration exceeded
+                    if asyncio.get_event_loop().time() - scan_start_time > max_scan_duration:
+                        logger.info("Scan duration limit reached (30s), stopping...")
+                        self.scanning = False
+                        break
+                    
                     line = await asyncio.wait_for(process.stdout.readline(), timeout=1.0)
                     if not line:
                         break
                     
                     line = line.decode('utf-8').strip()
+                    logger.debug(f"Scan output: {line}")
                     
                     # Parse device discovery
                     match = self.DEVICE_NEW_PATTERN.search(line)
                     if match:
                         mac, name = match.groups()
+                        logger.info(f"Discovered device: {mac} - {name}")
                         await callback({
                             'type': 'discovered',
                             'mac': mac,
@@ -235,8 +252,9 @@ class BluetoothManager:
                     continue
         
         except Exception as e:
-            print(f"Scan error: {e}")
+            logger.error(f"Scan error: {e}")
         finally:
+            logger.info("Stopping scan...")
             if self.scan_process:
                 try:
                     self.scan_process.stdin.write(b'scan off\nexit\n')
@@ -246,6 +264,8 @@ class BluetoothManager:
                 except:
                     pass
                 self.scan_process = None
+            self.scanning = False
+            logger.info("Scan stopped")
     
     def stop_scan(self) -> Tuple[bool, str]:
         """

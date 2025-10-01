@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2025-10-01
+
+### Added
+- **Backend:** Automatic 30-second timeout for Bluetooth scanning with proper cleanup and logging
+- **Backend:** Comprehensive command logging (command, return code, stdout, stderr) for all bluetoothctl operations
+- **Frontend:** Periodic connection status polling every 5 seconds for real-time paired device updates
+- **Frontend:** Custom styled confirmation modal replacing native JavaScript alert()
+- **Frontend:** Immediate device info modal display with loading spinner while data loads in background
+- **Frontend:** Visual loading indicator on refresh button during paired device reload operations
+- **Frontend:** Device-specific SVG icons indicating connection states (connected in green, disconnected in red, discovered in blue)
+
+### Fixed
+- Power button now correctly displays adapter powered state with accurate on/off text
+- Discovered devices panel displays contextual messages based on whether scanning is active or not
+- Scanning automatically terminates after 30 seconds to prevent indefinite execution
+- Audio device filter checkbox now unchecked by default for better discoverability of all device types
+- Application header displays icon.png image instead of FontAwesome Bluetooth icon
+
+### Improved
+- Enhanced error detection in adapter power commands by checking for "succeeded" in bluetoothctl output
+- More responsive and polished UI with loading indicators across all asynchronous operations
+- Superior user experience with styled modals, immediate feedback, and clear visual states
+
 ## [1.0.4] - 2025-10-01
 
 ### Fixed
