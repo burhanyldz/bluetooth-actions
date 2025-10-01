@@ -77,6 +77,12 @@ class BluetoothManager {
         });
 
         // Modal actions
+        document.getElementById('modal-connect-btn').addEventListener('click', () => {
+            this.modalConnect();
+        });
+        document.getElementById('modal-disconnect-btn').addEventListener('click', () => {
+            this.modalDisconnect();
+        });
         document.getElementById('modal-trust-btn').addEventListener('click', () => {
             this.toggleTrust();
         });
@@ -95,8 +101,15 @@ class BluetoothManager {
     // Adapter Management
     async loadAdapterInfo() {
         try {
-            const info = await this.api.getAdapterInfo();
-            this.currentAdapter = info;
+            const adapters = await this.api.getAdapters();
+            if (adapters.length === 0) {
+                this.showToast('No Bluetooth adapter found', 'error');
+                return;
+            }
+            
+            const adapterId = adapters[0].id;
+            const info = await this.api.getAdapterInfo(adapterId);
+            this.currentAdapter = info;  // Store the full adapter info
             
             const adapterName = document.getElementById('adapter-name');
             adapterName.textContent = info.alias || info.name || 'Bluetooth Adapter';
@@ -113,6 +126,21 @@ class BluetoothManager {
         } catch (error) {
             this.showToast('Failed to load adapter info', 'error');
             console.error('Error loading adapter:', error);
+        }
+    }
+
+    async togglePower() {
+        const isOn = this.currentAdapter?.powered === true || this.currentAdapter?.powered === 'yes';
+        
+        try {
+            this.showLoading('Toggling power...');
+            await this.api.setAdapterPower(!isOn);
+            await this.loadAdapterInfo();  // This will update currentAdapter
+            this.showToast(`Adapter powered ${!isOn ? 'on' : 'off'}`, 'success');
+        } catch (error) {
+            this.showToast(`Failed to toggle power: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
         }
     }
 
@@ -169,6 +197,7 @@ class BluetoothManager {
             await this.api.stopScan();
             this.scanning = false;
             this.updateScanButton();
+            this.renderDiscoveredDevices();  // Update UI to remove scanning message
             this.showToast('Scanning stopped', 'info');
         } catch (error) {
             this.showToast(`Failed to stop scan: ${error.message}`, 'error');
@@ -615,6 +644,23 @@ class BluetoothManager {
             </div>
         `;
         
+        // Show/hide connect/disconnect buttons based on connection state
+        const connectBtn = document.getElementById('modal-connect-btn');
+        const disconnectBtn = document.getElementById('modal-disconnect-btn');
+        
+        if (info.paired) {
+            if (info.connected) {
+                connectBtn.style.display = 'none';
+                disconnectBtn.style.display = 'inline-block';
+            } else {
+                connectBtn.style.display = 'inline-block';
+                disconnectBtn.style.display = 'none';
+            }
+        } else {
+            connectBtn.style.display = 'none';
+            disconnectBtn.style.display = 'none';
+        }
+        
         modal.classList.remove('hidden');
     }
 
@@ -622,6 +668,40 @@ class BluetoothManager {
         document.getElementById('device-modal').classList.add('hidden');
         this.currentDeviceMac = null;
         this.currentDeviceInfo = null;
+    }
+
+    async modalConnect() {
+        if (!this.currentDeviceMac) return;
+        
+        try {
+            this.showLoading('Connecting...');
+            await this.api.connectDevice(this.currentDeviceMac);
+            this.showToast('Connected successfully', 'success');
+            // Reload device info to update the modal
+            await this.showDeviceInfo(this.currentDeviceMac);
+            await this.loadPairedDevices();
+        } catch (error) {
+            this.showToast(`Failed to connect: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async modalDisconnect() {
+        if (!this.currentDeviceMac) return;
+        
+        try {
+            this.showLoading('Disconnecting...');
+            await this.api.disconnectDevice(this.currentDeviceMac);
+            this.showToast('Disconnected successfully', 'success');
+            // Reload device info to update the modal
+            await this.showDeviceInfo(this.currentDeviceMac);
+            await this.loadPairedDevices();
+        } catch (error) {
+            this.showToast(`Failed to disconnect: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
     }
 
     async toggleTrust() {

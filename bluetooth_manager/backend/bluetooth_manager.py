@@ -189,83 +189,65 @@ class BluetoothManager:
         self.scanning = True
         logger.info("Starting Bluetooth scan...")
         
-        try:
-            # Start bluetoothctl in interactive mode
-            process = await asyncio.create_subprocess_exec(
-                'bluetoothctl',
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            self.scan_process = process
-            
-            # Send scan on command
-            process.stdin.write(b'scan on\n')
-            await process.stdin.drain()
-            logger.info("Scan command sent to bluetoothctl")
-            
-            # Read output line by line
-            scan_start_time = asyncio.get_event_loop().time()
-            max_scan_duration = 30  # 30 seconds max scan
-            
-            while self.scanning:
-                try:
-                    # Check if scan duration exceeded
-                    if asyncio.get_event_loop().time() - scan_start_time > max_scan_duration:
-                        logger.info("Scan duration limit reached (30s), stopping...")
-                        self.scanning = False
-                        break
-                    
-                    line = await asyncio.wait_for(process.stdout.readline(), timeout=1.0)
-                    if not line:
-                        break
-                    
-                    line = line.decode('utf-8').strip()
-                    logger.debug(f"Scan output: {line}")
-                    
-                    # Parse device discovery
-                    match = self.DEVICE_NEW_PATTERN.search(line)
-                    if match:
-                        mac, name = match.groups()
-                        logger.info(f"Discovered device: {mac} - {name}")
-                        await callback({
-                            'type': 'discovered',
-                            'mac': mac,
-                            'name': name,
-                            'discovered_at': datetime.now().isoformat()
-                        })
-                    
-                    # Parse RSSI updates
-                    if self.DEVICE_CHG_PATTERN.search(line):
-                        mac_match = self.DEVICE_CHG_PATTERN.search(line)
-                        rssi_match = self.RSSI_PATTERN.search(line)
-                        if mac_match and rssi_match:
-                            mac = mac_match.group(1)
-                            rssi_int = rssi_match.group(2)
-                            await callback({
-                                'type': 'rssi_update',
-                                'mac': mac,
-                                'rssi': int(rssi_int)
-                            })
-                except asyncio.TimeoutError:
-                    # Just continue waiting for more output
-                    continue
+        # Start scan with regular bluetoothctl command
+        returncode, stdout, stderr = self.execute_command('scan on')
+        if returncode != 0 and "failed" in stderr.lower():
+            logger.error(f"Failed to start scan: {stderr}")
+            self.scanning = False
+            return
         
+        logger.info("Scan started successfully")
+        
+        # Keep track of seen devices
+        seen_devices = set()
+        scan_start_time = asyncio.get_event_loop().time()
+        max_scan_duration = 30  # 30 seconds max scan
+        
+        try:
+            while self.scanning:
+                # Check if scan duration exceeded
+                if asyncio.get_event_loop().time() - scan_start_time > max_scan_duration:
+                    logger.info("Scan duration limit reached (30s), stopping...")
+                    self.scanning = False
+                    break
+                
+                # Get current devices list
+                devices = self.get_devices()
+                
+                for device in devices:
+                    mac = device['mac']
+                    if mac not in seen_devices:
+                        seen_devices.add(mac)
+                        logger.info(f"Discovered device: {mac} - {device['name']}")
+                        
+                        # Get device info to check if it's paired
+                        info = self.get_device_info(mac)
+                        
+                        # Only send unpaired devices as "discovered"
+                        if not info.get('paired', False):
+                            await callback({
+                                'type': 'discovered',
+                                'mac': mac,
+                                'name': device['name'],
+                                'rssi': info.get('rssi'),
+                                'discovered_at': datetime.now().isoformat()
+                            })
+                
+                # Wait a bit before next poll
+                await asyncio.sleep(2)
+                
         except Exception as e:
             logger.error(f"Scan error: {e}")
         finally:
             logger.info("Stopping scan...")
-            if self.scan_process:
-                try:
-                    self.scan_process.stdin.write(b'scan off\nexit\n')
-                    await self.scan_process.stdin.drain()
-                    self.scan_process.terminate()
-                    await self.scan_process.wait()
-                except:
-                    pass
-                self.scan_process = None
+            # Stop scan
+            returncode, stdout, stderr = self.execute_command('scan off')
+            if returncode == 0:
+                logger.info("Scan stopped successfully")
+            else:
+                logger.error(f"Error stopping scan: {stderr}")
             self.scanning = False
-            logger.info("Scan stopped")
+            logger.info("Scan complete")
     
     def stop_scan(self) -> Tuple[bool, str]:
         """

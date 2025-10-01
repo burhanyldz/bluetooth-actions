@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.6 (2025-10-02)
+
+### Fixed
+- **Critical:** Power button now correctly toggles adapter on/off and displays accurate state (blue when on)
+- **Critical:** Scanning now properly discovers and displays devices using polling approach
+- Icon display in header (now served from /static/icon.png)
+- "Scanning for devices..." message now clears when scan stops or completes
+
+### Added
+- Connect/Disconnect buttons in device info modal that update in real-time
+- Home Assistant ingress support with sidebar panel (mdi:bluetooth icon)
+- Panel integration allows using add-on without opening new tab
+
+### Improved
+- Scanning reliability with simpler poll-based device discovery
+- Device modal now shows appropriate connection action buttons based on state
+- Better state management for adapter power status
+
 ## 1.0.5 (2025-10-01)
 
 ### Added

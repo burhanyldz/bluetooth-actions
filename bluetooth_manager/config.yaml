@@ -1,5 +1,5 @@
 name: Bluetooth Manager
-version: "1.0.5"
+version: "1.0.6"
 slug: bluetooth_manager
 description: Web-based GUI for managing Bluetooth connections
 url: https://github.com/burhanyldz/bluetooth-actions
@@ -29,5 +29,9 @@ ports:
   8099/tcp: 8099
 ports_description:
   8099/tcp: Web interface
-webui: "http://[HOST]:[PORT:8099]"
+ingress: true
+ingress_port: 8099
 panel_icon: mdi:bluetooth
+panel_title: Bluetooth Manager
+panel_admin: false
+webui: "http://[HOST]:[PORT:8099]"

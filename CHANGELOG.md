@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2025-10-02
+
+### Fixed
+- **Critical:** Power button now correctly toggles Bluetooth adapter on/off with proper state display (blue when powered on)
+- **Critical:** Bluetooth scanning now reliably discovers and displays nearby devices using improved polling-based approach
+- Application icon in header now loads correctly from /static/icon.png
+- "Scanning for devices..." message properly clears when scan stops or completes automatically
+
+### Added
+- Connect/Disconnect action buttons in device information modal
+- Real-time modal updates after connection state changes
+- Home Assistant ingress support for embedded UI experience
+- Sidebar panel integration with mdi:bluetooth icon
+- Users can now access Bluetooth Manager directly from Home Assistant sidebar without opening new tab
+
+### Improved
+- Scanning reliability completely rewritten with device polling approach instead of parsing bluetoothctl output
+- Device modal intelligently shows Connect or Disconnect button based on current connection state
+- Enhanced adapter power state management and synchronization
+- Better user feedback when operations complete
+
 ## [1.0.5] - 2025-10-01
 
 ### Added

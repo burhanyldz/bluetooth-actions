@@ -12,7 +12,7 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1><img src="/bluetooth_manager/icon.png" alt="Bluetooth" style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;"> Bluetooth Manager</h1>
+                <h1><img src="/static/icon.png" alt="Bluetooth" style="width: 32px; height: 32px; vertical-align: middle; margin-right: 8px;"> Bluetooth Manager</h1>
                 <div class="adapter-status">
                     <span id="adapter-name">Loading...</span>
                     <button id="power-toggle" class="btn btn-secondary">
@@ -95,6 +95,12 @@
                 <!-- Device details will be inserted here -->
             </div>
             <div class="modal-footer">
+                <button id="modal-connect-btn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-link"></i> Connect
+                </button>
+                <button id="modal-disconnect-btn" class="btn btn-warning" style="display: none;">
+                    <i class="fas fa-unlink"></i> Disconnect
+                </button>
                 <button id="modal-trust-btn" class="btn btn-secondary">
                     <i class="fas fa-shield-alt"></i> Trust
                 </button>
