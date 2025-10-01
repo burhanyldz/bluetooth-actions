@@ -17,7 +17,7 @@ fi
 # Start Bluetooth service if not running
 if ! pgrep -x "bluetoothd" > /dev/null; then
     bashio::log.info "Starting Bluetooth service..."
-    /usr/libexec/bluetooth/bluetoothd &
+    bluetoothd &
     sleep 2
 fi
 

@@ -156,51 +156,67 @@ class BluetoothManager:
         self.scanning = True
         
         try:
-            # Start scan process
+            # Start bluetoothctl in interactive mode
             process = await asyncio.create_subprocess_exec(
-                'bluetoothctl', 'scan', 'on',
+                'bluetoothctl',
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             self.scan_process = process
             
+            # Send scan on command
+            process.stdin.write(b'scan on\n')
+            await process.stdin.drain()
+            
             # Read output line by line
             while self.scanning:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                
-                line = line.decode('utf-8').strip()
-                
-                # Parse device discovery
-                match = self.DEVICE_NEW_PATTERN.search(line)
-                if match:
-                    mac, name = match.groups()
-                    await callback({
-                        'type': 'discovered',
-                        'mac': mac,
-                        'name': name,
-                        'discovered_at': datetime.now().isoformat()
-                    })
-                
-                # Parse RSSI updates
-                if self.DEVICE_CHG_PATTERN.search(line):
-                    mac_match = self.DEVICE_CHG_PATTERN.search(line)
-                    rssi_match = self.RSSI_PATTERN.search(line)
-                    if mac_match and rssi_match:
-                        mac = mac_match.group(1)
-                        rssi_int = rssi_match.group(2)
+                try:
+                    line = await asyncio.wait_for(process.stdout.readline(), timeout=1.0)
+                    if not line:
+                        break
+                    
+                    line = line.decode('utf-8').strip()
+                    
+                    # Parse device discovery
+                    match = self.DEVICE_NEW_PATTERN.search(line)
+                    if match:
+                        mac, name = match.groups()
                         await callback({
-                            'type': 'rssi_update',
+                            'type': 'discovered',
                             'mac': mac,
-                            'rssi': int(rssi_int)
+                            'name': name,
+                            'discovered_at': datetime.now().isoformat()
                         })
+                    
+                    # Parse RSSI updates
+                    if self.DEVICE_CHG_PATTERN.search(line):
+                        mac_match = self.DEVICE_CHG_PATTERN.search(line)
+                        rssi_match = self.RSSI_PATTERN.search(line)
+                        if mac_match and rssi_match:
+                            mac = mac_match.group(1)
+                            rssi_int = rssi_match.group(2)
+                            await callback({
+                                'type': 'rssi_update',
+                                'mac': mac,
+                                'rssi': int(rssi_int)
+                            })
+                except asyncio.TimeoutError:
+                    # Just continue waiting for more output
+                    continue
         
         except Exception as e:
             print(f"Scan error: {e}")
         finally:
             if self.scan_process:
-                self.scan_process.terminate()
+                try:
+                    self.scan_process.stdin.write(b'scan off\nexit\n')
+                    await self.scan_process.stdin.drain()
+                    self.scan_process.terminate()
+                    await self.scan_process.wait()
+                except:
+                    pass
+                self.scan_process = None
     
     def stop_scan(self) -> Tuple[bool, str]:
         """
@@ -215,16 +231,14 @@ class BluetoothManager:
         self.scanning = False
         
         if self.scan_process:
-            self.scan_process.terminate()
+            try:
+                # Try to gracefully stop
+                self.scan_process.terminate()
+            except:
+                pass
             self.scan_process = None
         
-        # Also send bluetoothctl command
-        returncode, stdout, stderr = self.execute_command('scan off')
-        
-        if returncode == 0:
-            return True, "Scan stopped"
-        else:
-            return False, self._parse_error(stderr)
+        return True, "Scan stopped"
     
     def get_devices(self) -> List[Dict]:
         """
