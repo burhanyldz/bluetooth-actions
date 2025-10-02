@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2025-10-02
+
+### Fixed
+- **Critical:** Bluetooth pairing now includes proper state settling delays (2 seconds after pair)
+- **Critical:** Trust operation waits 1 second for BlueZ to propagate changes
+- **Critical:** Connect operation waits 2 seconds for connection to fully establish
+- **Critical:** Device removal now properly disconnects device first if connected
+- Enhanced error detection for pair/trust/connect/remove operations
+- Paired devices now appear correctly in paired list after pairing
+- Removed devices can now be rediscovered in subsequent scans
+- Removed device now properly clears from paired devices list and reloads to sync with backend
+- Newly paired device now appears in paired devices list immediately
+- Paired device automatically switches to paired tab after successful pairing
+
+### Added
+- Comprehensive logging for all Bluetooth operations showing command results
+- Support for detecting "already paired" devices during pair operation
+- Automatic disconnection step before removing paired devices
+- Detailed error messages including full bluetoothctl output for troubleshooting
+
+### Changed
+- Extended automatic scan timeout from 30 seconds to 60 seconds for better device discovery
+- Toast notification now shows "will auto-stop after 60s" instead of 30s
+- Paired devices list automatically reloads from backend after removal
+- After successful pairing, automatically switches to paired tab to show result
+
+### Improved
+- Significantly more reliable Bluetooth operation sequencing
+- Proper state synchronization between bluetoothctl operations
+- Better handling of Bluetooth stack timing requirements
+- Scan duration confirmed at 60 seconds
+
+### Technical Details
+- Each Bluetooth operation now waits for BlueZ daemon to update its internal state
+- Prevents race conditions between pair→trust→connect sequence
+- Ensures device list accurately reflects current Bluetooth state
+- Removes timing-dependent failures in quick operation sequences
+
 ## [1.0.7] - 2025-10-02
 
 ### Fixed
@@ -133,18 +171,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration options
 - Usage examples
 
-## [Unreleased]
+## [1.0.8] - 2025-10-02
 
-### Planned Features
-- Bluetooth LE (BLE) device support improvements
-- Device grouping and organization
-- Auto-reconnect automation
-- Integration with Home Assistant media player entities
-- Device connection history
-- Bluetooth adapter selection (multi-adapter support)
-- Custom device icons
-- Device nickname/alias editing
-- Export/import device configurations
-- Connection scheduling
-- Audio profile selection
-- Volume control integration
+### Fixed
+- **Critical:** Bluetooth pairing now includes proper state settling delays (2 seconds after pair)
+- **Critical:** Trust operation waits 1 second for BlueZ to propagate changes
+- **Critical:** Connect operation waits 2 seconds for connection to fully establish
+- **Critical:** Device removal now properly disconnects device first if connected
+- Enhanced error detection for pair/trust/connect/remove operations
+- Paired devices now appear correctly in paired list after pairing
+- Removed devices can now be discovered again in scan results
+- Removed device now properly clears from paired devices list and reloads to sync with backend
+- Newly paired device now appears in paired devices list immediately
+- Paired device automatically switches to paired tab after successful pairing
+
+### Added
+- Comprehensive logging for all Bluetooth operations (pair, trust, connect, disconnect, remove)
+- Detection of "already paired" state during pairing
+- Automatic disconnection before device removal
+
+### Changed
+- Extended scan duration from 30 seconds to 60 seconds for better device discovery
+- Toast notification now shows "will auto-stop after 60s" instead of 30s
+- Paired devices list automatically reloads from backend after removal
+- After successful pairing, automatically switches to paired tab to show result
+
+### Improved
+- More reliable Bluetooth operation sequencing with proper state settling times
+- Better error messages with full context from bluetoothctl output
+- Scan duration already set to 60 seconds (confirmed)
+- Paired device is immediately removed from discovered devices list after pairing
+- Better state management ensures UI accurately reflects backend state
+- More reliable device list updates after all pairing/unpairing operations
+
+## [1.0.7] - 2025-10-02
+
+### Fixed
+- **Critical:** Home Assistant ingress mode now works correctly
+- Fixed 404 errors for CSS, JavaScript, and image assets when using ingress
+- Changed all resource paths from absolute (`/static/...`) to relative (`static/...`) for ingress compatibility
+- WebSocket connection properly handles Home Assistant proxy paths
+- API requests now correctly use base path when running under ingress
+
+### Improved
+- Automatic base path detection for seamless ingress integration
+- Enhanced debugging with base path and WebSocket URL logging
+- Add-on now works both standalone and embedded in Home Assistant sidebar

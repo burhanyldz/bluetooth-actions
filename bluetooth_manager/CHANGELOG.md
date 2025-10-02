@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.0.8 (2025-10-02)
+
+### Fixed
+- **Critical:** Pairing now includes proper delays for Bluetooth state to settle (2 second wait after pair)
+- **Critical:** Trust operation includes 1 second delay for state propagation
+- **Critical:** Connect operation includes 2 second delay for connection to fully establish
+- **Critical:** Remove device now disconnects first if connected, then waits for state to settle
+- Enhanced error detection for pair/trust/connect/remove operations
+- Paired devices now appear correctly in paired list after pairing
+- Removed devices can now be discovered again in scan results
+- Removed device now properly clears from paired devices list and reloads to sync with backend
+- Newly paired device now appears in paired devices list immediately
+- Paired device automatically switches to paired tab after successful pairing
+
+### Added
+- Comprehensive logging for all Bluetooth operations (pair, trust, connect, disconnect, remove)
+- Detection of "already paired" state during pairing
+- Automatic disconnection before device removal
+
+### Changed
+- Extended scan duration from 30 seconds to 60 seconds for better device discovery
+- After pairing, device is removed from discovered devices list
+- After removing, paired devices list is reloaded from backend
+
+### Improved
+- More reliable Bluetooth operation sequencing with proper state settling times
+- Better error messages with full context from bluetoothctl output
+- Scan duration already set to 60 seconds (confirmed)
+- Better state synchronization between frontend and backend after device operations
+- More reliable device list updates after pairing/unpairing operations
+
 ## 1.0.7 (2025-10-02)
 
 ### Fixed
