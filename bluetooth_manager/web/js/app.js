@@ -196,18 +196,18 @@ class BluetoothManager {
             this.updateScanButton();
             this.discoveredDevices.clear();
             this.renderDiscoveredDevices();
-            this.showToast('Scanning started (will auto-stop after 30s)', 'info');
+            this.showToast('Scanning started (will auto-stop after 60s)', 'info');
             
             // Auto-switch to discovered tab
             this.switchTab('discovered');
             
-            // Auto-stop scan after 30 seconds
+            // Auto-stop scan after 60 seconds
             setTimeout(async () => {
                 if (this.scanning) {
                     await this.stopScan();
                     this.showToast('Scan completed', 'success');
                 }
-            }, 30000);
+            }, 60000);
         } catch (error) {
             this.showToast(`Failed to start scan: ${error.message}`, 'error');
         }
@@ -281,8 +281,15 @@ class BluetoothManager {
             // Connect
             await this.api.connectDevice(mac);
             
-            // Reload devices
+            // Remove from discovered devices
+            this.discoveredDevices.delete(mac);
+            this.renderDiscoveredDevices();
+            
+            // Reload paired devices to show the newly paired device
             await this.loadPairedDevices();
+            
+            // Switch to paired tab to show the result
+            this.switchTab('paired');
             
             this.showToast('Device paired and connected!', 'success');
         } catch (error) {
@@ -325,8 +332,13 @@ class BluetoothManager {
                 try {
                     this.showLoading('Removing device...');
                     await this.api.removeDevice(mac);
+                    
+                    // Remove from local paired devices map
                     this.pairedDevices.delete(mac);
-                    this.renderPairedDevices();
+                    
+                    // Reload paired devices to ensure sync with backend
+                    await this.loadPairedDevices();
+                    
                     this.showToast('Device removed', 'success');
                 } catch (error) {
                     this.showToast(`Failed to remove: ${error.message}`, 'error');

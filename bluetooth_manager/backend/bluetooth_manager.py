@@ -201,13 +201,13 @@ class BluetoothManager:
         # Keep track of seen devices
         seen_devices = set()
         scan_start_time = asyncio.get_event_loop().time()
-        max_scan_duration = 30  # 30 seconds max scan
+        max_scan_duration = 60  # 60 seconds max scan
         
         try:
             while self.scanning:
                 # Check if scan duration exceeded
                 if asyncio.get_event_loop().time() - scan_start_time > max_scan_duration:
-                    logger.info("Scan duration limit reached (30s), stopping...")
+                    logger.info("Scan duration limit reached (60s), stopping...")
                     self.scanning = False
                     break
                 
@@ -350,12 +350,24 @@ class BluetoothManager:
         Returns:
             Tuple of (success, message)
         """
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Attempting to pair with device: {mac_address}")
         returncode, stdout, stderr = self.execute_command(f'pair {mac_address}', timeout=60)
         
-        if returncode == 0 or 'Pairing successful' in stdout:
+        logger.info(f"Pair command result - returncode: {returncode}, stdout: {stdout}, stderr: {stderr}")
+        
+        if returncode == 0 or 'Pairing successful' in stdout or 'already paired' in stdout.lower():
+            # Wait for pairing to settle
+            logger.info("Pairing successful, waiting 2 seconds for state to settle...")
+            time.sleep(2)
             return True, "Device paired successfully"
         else:
-            return False, self._parse_error(stderr + stdout)
+            error_msg = self._parse_error(stderr + stdout)
+            logger.error(f"Pairing failed: {error_msg}")
+            return False, error_msg
     
     def trust_device(self, mac_address: str) -> Tuple[bool, str]:
         """
@@ -367,9 +379,18 @@ class BluetoothManager:
         Returns:
             Tuple of (success, message)
         """
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Trusting device: {mac_address}")
         returncode, stdout, stderr = self.execute_command(f'trust {mac_address}')
         
-        if returncode == 0:
+        logger.info(f"Trust command result - returncode: {returncode}, stdout: {stdout}, stderr: {stderr}")
+        
+        if returncode == 0 or 'trust succeeded' in stdout.lower():
+            # Small delay for trust to settle
+            time.sleep(1)
             return True, "Device trusted"
         else:
             return False, self._parse_error(stderr)
@@ -401,12 +422,23 @@ class BluetoothManager:
         Returns:
             Tuple of (success, message)
         """
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Connecting to device: {mac_address}")
         returncode, stdout, stderr = self.execute_command(f'connect {mac_address}', timeout=60)
         
-        if returncode == 0 or 'Connection successful' in stdout:
+        logger.info(f"Connect command result - returncode: {returncode}, stdout: {stdout}, stderr: {stderr}")
+        
+        if returncode == 0 or 'Connection successful' in stdout or 'Connected: yes' in stdout:
+            # Wait for connection to fully establish
+            time.sleep(2)
             return True, "Connected successfully"
         else:
-            return False, self._parse_error(stderr + stdout)
+            error_msg = self._parse_error(stderr + stdout)
+            logger.error(f"Connection failed: {error_msg}")
+            return False, error_msg
     
     def disconnect_device(self, mac_address: str) -> Tuple[bool, str]:
         """
@@ -435,12 +467,31 @@ class BluetoothManager:
         Returns:
             Tuple of (success, message)
         """
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Removing device: {mac_address}")
+        
+        # First disconnect if connected
+        device_info = self.get_device_info(mac_address)
+        if device_info.get('connected', False):
+            logger.info(f"Device is connected, disconnecting first...")
+            self.disconnect_device(mac_address)
+            time.sleep(1)
+        
         returncode, stdout, stderr = self.execute_command(f'remove {mac_address}')
         
-        if returncode == 0:
+        logger.info(f"Remove command result - returncode: {returncode}, stdout: {stdout}, stderr: {stderr}")
+        
+        if returncode == 0 or 'Device has been removed' in stdout:
+            # Wait for removal to settle
+            time.sleep(1)
             return True, "Device removed"
         else:
-            return False, self._parse_error(stderr)
+            error_msg = self._parse_error(stderr)
+            logger.error(f"Remove failed: {error_msg}")
+            return False, error_msg
     
     def _parse_error(self, error_output: str) -> str:
         """
